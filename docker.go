@@ -18,6 +18,7 @@ import (
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
@@ -386,8 +387,26 @@ type DockerNetwork struct {
 func (n *DockerNetwork) Remove(_ context.Context) error {
 	if n.terminationSignal != nil {
 		n.terminationSignal <- true
+		return nil
+	} else {
+		args := filters.NewArgs(filters.Arg("id", n.ID))
+		report, err := n.provider.client.NetworksPrune(context.Background(), args)
+		if err != nil {
+			return err
+		}
+
+		var success bool
+		for _, networkId := range report.NetworksDeleted {
+			if n.ID == networkId {
+				success = true
+			}
+		}
+		if success {
+			return nil
+		} else {
+			return fmt.Errorf("Failed to prune docker network %s", n.ID)
+		}
 	}
-	return nil
 }
 
 // DockerProvider implements the ContainerProvider interface
